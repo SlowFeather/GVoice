@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gvoice"
+version = "0.1.0"
+description = "CPU-friendly streaming Chinese text-to-speech service"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "GVoice contributors" },
+]
+keywords = ["tts", "text-to-speech", "chinese", "onnx", "streaming-audio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "cn2an",
+    "jieba",
+    "numpy<2",
+    "onnxruntime>=1.22",
+    "pypinyin",
+    "soundfile",
+    "sherpa-onnx",
+    "tqdm",
+    "Unidecode",
+    "pyyaml",
+    "websockets>=12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "websockets>=12"]
+export = ["librosa", "numba", "onnx", "onnxscript", "torch"]
+
+[project.scripts]
+gvoice = "gvoice.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

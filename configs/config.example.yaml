@@ -1,0 +1,37 @@
+paths:
+  base_dir: artifacts
+
+logging:
+  level: "INFO"
+  file: "artifacts/logs/gvoice.log"
+  console: true
+
+tts:
+  host: "127.0.0.1"
+  ws_host:
+  ws_port: 8787
+  ws_path: "/v1/tts/ws"
+
+  # Use sherpa_onnx_vits for first-time setup because it can download
+  # a public AISHELL3 VITS model automatically.
+  backend: "sherpa_onnx_vits"
+  sample_rate: 16000
+  speaker_id: 0
+  speed: 1.0
+
+  # Genshin VITS tuning fields. They are ignored by sherpa_onnx_vits.
+  noise_scale: 0.6
+  noise_scale_w: 0.668
+  length_scale: 1.2
+
+  num_threads: 4
+  stream_chunk_ms: 120
+  max_concurrent_requests: 1
+  queue_timeout_sec: 5.0
+
+  # Set model_sha256 if you want strict verification for downloaded models.
+  model_sha256:
+
+  # Required only when backend is genshin_vits_onnx.
+  genshin_model_path: "artifacts/models/vits-models-genshin-bh3/keqing/keqing_tunable.onnx"
+  genshin_source_dir: "artifacts/sources/vits-models-genshin-bh3"

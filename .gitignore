@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Runtime artifacts and downloaded models
+artifacts/
+
+# Optional local-only config
+configs/config.local.yaml
+
+# Local editor/OS noise
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

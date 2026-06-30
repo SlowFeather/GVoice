@@ -1,0 +1,26 @@
+paths:
+  base_dir: artifacts
+
+logging:
+  level: "INFO"
+  file: "artifacts/logs/gvoice.log"
+  console: true
+
+tts:
+  host: "127.0.0.1"
+  ws_host:
+  ws_port: 8787
+  ws_path: "/v1/tts/ws"
+  backend: "genshin_vits_onnx"
+  sample_rate: 22050
+  speaker_id: 115
+  speed: 1.0
+  noise_scale: 0.6
+  noise_scale_w: 0.668
+  length_scale: 1.2
+  num_threads: 4
+  stream_chunk_ms: 120
+  max_concurrent_requests: 1
+  queue_timeout_sec: 5.0
+  genshin_model_path: "artifacts/models/vits-models-genshin-bh3/keqing/keqing_tunable.onnx"
+  genshin_source_dir: "artifacts/sources/vits-models-genshin-bh3"

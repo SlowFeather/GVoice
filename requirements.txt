@@ -1,0 +1,11 @@
+cn2an
+jieba
+numpy<2
+onnxruntime>=1.22
+pypinyin
+soundfile
+sherpa-onnx
+tqdm
+Unidecode
+pyyaml
+websockets>=12
