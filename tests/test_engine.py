@@ -45,6 +45,7 @@ def test_config_defaults():
     assert cfg.tts.backend == "genshin_vits_onnx"
     assert cfg.tts.sample_rate == 22050
     assert cfg.tts.speaker_id == 115
+    assert cfg.tts.speed == 0.85
     assert cfg.tts.noise_scale == 0.6
     assert cfg.tts.noise_scale_w == 0.668
     assert cfg.tts.length_scale == 1.2

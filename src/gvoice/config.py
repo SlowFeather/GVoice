@@ -34,7 +34,7 @@ class TtsConfig:
     backend: str = "genshin_vits_onnx"
     sample_rate: int = 22050
     speaker_id: int = 115
-    speed: float = 1.0
+    speed: float = 0.85
     noise_scale: float = 0.6
     noise_scale_w: float = 0.668
     length_scale: float = 1.2

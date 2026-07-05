@@ -14,7 +14,7 @@ tts:
   backend: "sherpa_onnx_vits"
   sample_rate: 16000
   speaker_id: 0
-  speed: 1.0
+  speed: 0.85
   noise_scale: 0.6
   noise_scale_w: 0.668
   length_scale: 1.2

@@ -130,7 +130,7 @@ server -> {"type":"flushed"}
   "text": "你好。",
   "speaker": "demo",
   "speaker_id": 115,
-  "speed": 1.0,
+  "speed": 0.85,
   "noise_scale": 0.6,
   "noise_scale_w": 0.668,
   "length_scale": 1.2
@@ -164,7 +164,7 @@ tts:
 创建固定 speaker id 配置：
 
 ```powershell
-uv run gvoice speakers init keqing --speaker-id 115 --speed 1.0
+uv run gvoice speakers init keqing --speaker-id 115 --speed 0.85
 uv run gvoice tts "你好，我是刻晴。" --speaker keqing --out artifacts\output\keqing.wav
 ```
 
