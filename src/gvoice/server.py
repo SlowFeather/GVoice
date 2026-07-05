@@ -152,20 +152,23 @@ class TtsWebSocketService:
             total_bytes = 0
             try:
                 req = self._resolve_speaker(req)
-                await self._send_json(
-                    websocket,
-                    {
-                        "type": "start",
-                        "text_chars": len(req.text),
-                        "sample_rate": self.engine.sample_rate,
-                        "format": "pcm_s16le",
-                        "channels": 1,
-                    },
-                )
-                async for pcm in self._stream_request_audio(req):
-                    await websocket.send(pcm)
+                started_audio = False
+                async for chunk in self._stream_request_audio(req):
+                    if not started_audio:
+                        await self._send_json(
+                            websocket,
+                            {
+                                "type": "start",
+                                "text_chars": len(req.text),
+                                "sample_rate": chunk.sample_rate,
+                                "format": "pcm_s16le",
+                                "channels": chunk.channels,
+                            },
+                        )
+                        started_audio = True
+                    await websocket.send(chunk.pcm)
                     chunks += 1
-                    total_bytes += len(pcm)
+                    total_bytes += len(chunk.pcm)
                 await self._send_json(
                     websocket,
                     {
@@ -208,12 +211,12 @@ class TtsWebSocketService:
 
     async def _stream_request_audio(self, req: TtsRequest):
         loop = asyncio.get_running_loop()
-        audio_queue: asyncio.Queue[bytes | Exception | None] = asyncio.Queue()
+        audio_queue: asyncio.Queue[Any | Exception | None] = asyncio.Queue()
 
         def worker() -> None:
             try:
                 for chunk in self.engine.stream_pcm(req):
-                    loop.call_soon_threadsafe(audio_queue.put_nowait, chunk.pcm)
+                    loop.call_soon_threadsafe(audio_queue.put_nowait, chunk)
             except Exception as exc:
                 loop.call_soon_threadsafe(audio_queue.put_nowait, exc)
             finally:

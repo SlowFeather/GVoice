@@ -17,7 +17,7 @@ tts:
   backend: "sherpa_onnx_vits"
   sample_rate: 16000
   speaker_id: 0
-  speed: 0.85
+  speed: 1
 
   # Genshin VITS tuning fields. They are ignored by sherpa_onnx_vits.
   noise_scale: 0.6

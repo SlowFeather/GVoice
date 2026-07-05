@@ -88,6 +88,31 @@ def test_websocket_text_returns_pcm_chunks_and_end():
     asyncio.run(_test_websocket_text_returns_pcm_chunks_and_end())
 
 
+async def _test_websocket_start_uses_actual_chunk_sample_rate():
+    class ActualRateEngine(FakeEngine):
+        sample_rate = 16000
+
+        def stream_pcm(self, req):
+            assert req.text
+            yield AudioChunk(b"\x01\x00\x02\x00", sample_rate=8000)
+
+    server, url = await run_ws_server(ActualRateEngine())
+    try:
+        async with websockets.connect(url) as ws:
+            await ws.send(json.dumps({"type": "text", "text": "\u4f60\u597d"}))
+            assert json.loads(await ws.recv())["type"] == "queued"
+            started = json.loads(await ws.recv())
+            assert started["type"] == "start"
+            assert started["sample_rate"] == 8000
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+def test_websocket_start_uses_actual_chunk_sample_rate():
+    asyncio.run(_test_websocket_start_uses_actual_chunk_sample_rate())
+
+
 async def _test_websocket_accepts_next_text_while_audio_is_blocked():
     release = threading.Event()
 
@@ -138,7 +163,6 @@ async def _test_websocket_synthesis_error_returns_json_error():
         async with websockets.connect(url) as ws:
             await ws.send(json.dumps({"type": "text", "text": "\u4f60\u597d"}))
             assert json.loads(await ws.recv())["type"] == "queued"
-            assert json.loads(await ws.recv())["type"] == "start"
             err = json.loads(await ws.recv())
             assert err == {"type": "error", "error": "synthesis failed"}
     finally:

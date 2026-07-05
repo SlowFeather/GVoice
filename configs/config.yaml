@@ -11,9 +11,9 @@ tts:
   ws_host:
   ws_port: 8787
   ws_path: "/v1/tts/ws"
-  backend: "sherpa_onnx_vits"
-  sample_rate: 16000
-  speaker_id: 0
+  backend: "genshin_vits_onnx"
+  sample_rate: 22050
+  speaker_id: 115
   speed: 0.85
   noise_scale: 0.6
   noise_scale_w: 0.668
