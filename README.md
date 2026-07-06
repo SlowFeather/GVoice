@@ -56,6 +56,9 @@ uv run gvoice --config configs\config.yaml serve
 uv run gvoice --config configs\config.yaml --log-level DEBUG --log-file artifacts\logs\gvoice.log serve
 ```
 
+文件日志为滚动日志（10MB × 5 份，UTF-8），格式与 ChatCaht 全家统一：
+`2026-07-06 10:09:29,554 INFO gvoice.server: 消息`；控制台输出为 UTF-8（Windows GBK 控制台下中文不会乱码或报 UnicodeEncodeError），可被 ChatCaht Dashboard 直接解析。
+
 常驻服务默认一次只执行一个合成请求，其余请求最多等待 5 秒；超时会返回 WebSocket JSON 错误 `service busy`。可以在配置中调整：
 
 ```yaml

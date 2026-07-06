@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+import logging.handlers
 from pathlib import Path
 import sys
 
 from .config import load_config
 
 
-LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
-LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+# 与 ChatCaht 全家统一的格式：2026-07-06 10:09:29,554 INFO gvoice.server: 消息
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 
 def _apply_overrides(cfg, args):
@@ -38,20 +39,30 @@ def _apply_overrides(cfg, args):
 
 
 def configure_logging(cfg) -> None:
+    # stdout/stderr 切到 UTF-8：Windows 默认 GBK 会让中文乱码甚至抛
+    # UnicodeEncodeError；stdout 还会被 ChatCaht 捕获成 service log（按 UTF-8 读）。
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     handlers: list[logging.Handler] = []
     if cfg.logging.console:
         handlers.append(logging.StreamHandler())
     if cfg.logging.file:
         path = Path(cfg.logging.file)
         path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(path, encoding="utf-8"))
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+            )
+        )
     if not handlers:
         handlers.append(logging.NullHandler())
 
     logging.basicConfig(
         level=getattr(logging, cfg.logging.level.upper()),
         format=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
         handlers=handlers,
         force=True,
     )
