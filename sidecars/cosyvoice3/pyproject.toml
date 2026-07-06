@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cosyvoice3-sidecar"
+version = "0.1.0"
+description = "CosyVoice3 streaming TTS sidecar for GVoice"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    # CosyVoice inference dependencies (subset of upstream requirements.txt)
+    "conformer==0.3.2",
+    "diffusers==0.29.0",
+    # matcha (third_party) 的 import 链需要
+    "gdown==5.1.0",
+    "wget==3.2",
+    "hydra-core==1.3.2",
+    "HyperPyYAML==1.2.3",
+    "inflect==7.3.1",
+    "librosa==0.10.2",
+    "lightning==2.2.4",
+    "matplotlib==3.7.5",
+    "modelscope==1.20.0",
+    "networkx==3.1",
+    "numpy==1.26.4",
+    "omegaconf==2.3.0",
+    "onnx==1.16.0",
+    "onnxruntime==1.18.0",
+    "openai-whisper==20231117",
+    "protobuf==4.25",
+    "pyarrow==18.1.0",
+    "pydantic==2.7.0",
+    "pyworld==0.3.4",
+    "rich==13.7.1",
+    "soundfile==0.12.1",
+    "tensorboard==2.14.0",
+    "torch==2.3.1",
+    "torchaudio==2.3.1",
+    "transformers==4.51.3",
+    "x-transformers==2.11.24",
+    "wetext==0.0.4",
+    # cosyvoice.flow.flow_matching 运行时 import pkg_resources
+    "setuptools<81",
+    "huggingface-hub",
+    # sidecar itself
+    "websockets>=12",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+cosyvoice3-sidecar = "cosyvoice3_sidecar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# openai-whisper 20231117 的 setup.py 用了 pkg_resources 但未声明构建依赖
+[tool.uv.extra-build-dependencies]
+openai-whisper = ["setuptools<81"]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchaudio = { index = "pytorch-cu121" }

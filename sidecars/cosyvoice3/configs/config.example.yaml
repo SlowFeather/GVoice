@@ -1,0 +1,50 @@
+# CosyVoice3 sidecar 配置。复制为 config.yaml 后按需修改。
+# GVoice 自动拉起 sidecar 时会用 --model / --prompt-wav / --prompt-text 覆盖这里的对应项。
+
+# CosyVoice 官方仓库位置（git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git vendor/CosyVoice）
+cosyvoice_repo: vendor/CosyVoice
+
+server:
+  host: 127.0.0.1
+  port: 8788
+  path: /v1/cosyvoice3/ws
+
+model:
+  # 0.5b（默认，FunAudioLLM/Fun-CosyVoice3-0.5B-2512）或 1.5b；也可填完整模型 id
+  name: cosyvoice3-0.5b
+  # 直接指定模型 id 时优先于 name
+  model_id: ""
+  # 已下载好的模型目录；留空自动下载到 models_dir 下
+  model_dir: ""
+  models_dir: models
+  download_source: modelscope   # modelscope | huggingface
+  fp16: true
+  load_trt: false
+  load_vllm: false
+  # 加载完成后合成一小段文本预热，显著降低首句延迟
+  warmup: true
+  warmup_text: "你好。"
+
+prompt:
+  # 参考音频（决定输出音色），16k/24k 单声道 5~30 秒干净人声最佳
+  wav: "C:/Users/Administrator/Downloads/zh_f.wav"
+  # 参考音频的逐字转写。填了走 zero_shot 模式（音色相似度更高，且启动时缓存音色特征）；
+  # 留空走 cross_lingual 模式（无需转写文本）
+  text: ""
+  # instruct 指令（可选，如“请用四川话表达”），非空时走 instruct2 模式
+  instruct: ""
+  # CosyVoice3 的系统前缀（自动拼 <|endofprompt|>），v2 及更早模型忽略
+  system: "You are a helpful assistant."
+
+tts:
+  speed: 1.0
+  # CosyVoice 自带文本正规化（数字、单位等）；排查问题时可关闭
+  text_frontend: true
+  # 首个流式块的 token 数（25 token ≈ 1 秒音频），每次合成前复位（上游不复位是 bug）。
+  # 调小可压首包延迟（15 ≈ 首包快 ~0.2s），块间衔接质量可能略降；0 用模型默认
+  first_chunk_tokens: 15
+
+logging:
+  level: INFO
+  file: logs/cosyvoice3.log
+  console: true

@@ -35,3 +35,20 @@ tts:
   # Required only when backend is genshin_vits_onnx.
   genshin_model_path: "artifacts/models/vits-models-genshin-bh3/keqing/keqing_tunable.onnx"
   genshin_source_dir: "artifacts/sources/vits-models-genshin-bh3"
+
+  # Required only when backend is cosyvoice3 (GPU 强烈推荐)。
+  # sidecar 安装见 sidecars/cosyvoice3/README.md（.\setup.ps1 一键安装）。
+  cosyvoice3:
+    url: "ws://127.0.0.1:8788/v1/cosyvoice3/ws"
+    # 连不上时自动拉起 sidecar（uv run cosyvoice3-sidecar serve）
+    autostart: true
+    sidecar_dir: "sidecars/cosyvoice3"
+    # 0.5b（FunAudioLLM/Fun-CosyVoice3-0.5B-2512，默认）或 1.5b；也可填完整模型 id。
+    # 修改后重启 GVoice，若 sidecar 正在跑别的模型会自动重启切换
+    model: "0.5b"
+    # 参考音频，决定输出音色（16k/24k 单声道 5~30 秒干净人声最佳）
+    prompt_wav: ""
+    # 参考音频逐字转写：填了走 zero_shot 模式（相似度更高），留空走 cross_lingual
+    prompt_text:
+    # 语速，1.0 原速；留空用 sidecar 默认
+    speed:

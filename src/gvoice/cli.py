@@ -65,7 +65,7 @@ def configure_logging(cfg) -> None:
 
 
 def _add_tts_tuning_args(parser):
-    parser.add_argument("--backend", choices=["genshin_vits_onnx", "sherpa_onnx_vits"], default=None)
+    parser.add_argument("--backend", choices=["genshin_vits_onnx", "sherpa_onnx_vits", "cosyvoice3"], default=None)
     parser.add_argument("--speaker-id", type=int, default=None)
     parser.add_argument("--speed", type=float, default=None)
     parser.add_argument("--noise-scale", type=float, default=None)

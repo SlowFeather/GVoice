@@ -123,10 +123,16 @@ class TtsWebSocketService:
         while True:
             item = await queue.get()
             if item is _CLOSE:
-                await self._send_json(websocket, {"type": "flushed"})
+                try:
+                    await self._send_json(websocket, {"type": "flushed"})
+                except ConnectionClosed:
+                    pass
                 return
             if item is _FLUSH:
-                await self._send_json(websocket, {"type": "flushed"})
+                try:
+                    await self._send_json(websocket, {"type": "flushed"})
+                except ConnectionClosed:
+                    return
                 continue
             req = item
             assert isinstance(req, TtsRequest)
@@ -212,10 +218,11 @@ class TtsWebSocketService:
     async def _stream_request_audio(self, req: TtsRequest):
         loop = asyncio.get_running_loop()
         audio_queue: asyncio.Queue[Any | Exception | None] = asyncio.Queue()
+        cancel = threading.Event()
 
         def worker() -> None:
             try:
-                for chunk in self.engine.stream_pcm(req):
+                for chunk in self.engine.stream_pcm(req, cancel):
                     loop.call_soon_threadsafe(audio_queue.put_nowait, chunk)
             except Exception as exc:
                 loop.call_soon_threadsafe(audio_queue.put_nowait, exc)
@@ -224,13 +231,18 @@ class TtsWebSocketService:
 
         thread = threading.Thread(target=worker, name="gvoice-ws-synth", daemon=True)
         thread.start()
-        while True:
-            item = await audio_queue.get()
-            if item is None:
-                break
-            if isinstance(item, Exception):
-                raise item
-            yield item
+        try:
+            while True:
+                item = await audio_queue.get()
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            # 客户端断开/打断时（async generator 被关闭）通知合成线程尽快停止，
+            # 避免被放弃的长合成占住并发槽位
+            cancel.set()
 
     def _resolve_speaker(self, req: TtsRequest) -> TtsRequest:
         if not req.speaker:

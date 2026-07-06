@@ -26,6 +26,31 @@ class LoggingConfig:
 
 
 @dataclass
+class Cosyvoice3Config:
+    # sidecar WebSocket 地址（autostart 时 host/port 也从这里解析）
+    url: str = "ws://127.0.0.1:8788/v1/cosyvoice3/ws"
+    # 连不上 sidecar 时自动拉起（uv run cosyvoice3-sidecar serve）
+    autostart: bool = True
+    sidecar_dir: str = "sidecars/cosyvoice3"
+    uv_executable: str = "uv"
+    # 模型：0.5b（默认）/ 1.5b / 完整模型 id；留空用 sidecar 自己的配置。
+    # autostart 时作为 --model 传给 sidecar；已运行的 sidecar 模型不一致时自动重启切换
+    model: str = "0.5b"
+    # 参考音频与其转写（决定音色）；留空用 sidecar 自己的配置
+    prompt_wav: str = ""
+    prompt_text: str | None = None
+    # 语速；None 用 sidecar 默认（注意与 tts.speed 无关，那是 VITS 后端的）
+    speed: float | None = None
+    connect_timeout_sec: float = 10.0
+    autostart_wait_sec: float = 60.0
+    # 等首个音频帧的超时；首次运行包含模型下载+加载，故很长
+    start_timeout_sec: float = 1800.0
+    chunk_timeout_sec: float = 60.0
+    restart_on_model_mismatch: bool = True
+    log_file: str = "artifacts/logs/cosyvoice3.sidecar.log"
+
+
+@dataclass
 class TtsConfig:
     host: str = "127.0.0.1"
     ws_host: str | None = None
@@ -46,6 +71,7 @@ class TtsConfig:
     model_sha256: str | None = None
     genshin_model_path: str = "artifacts/models/vits-models-genshin-bh3/keqing/keqing_tunable.onnx"
     genshin_source_dir: str = "artifacts/sources/vits-models-genshin-bh3"
+    cosyvoice3: Cosyvoice3Config = field(default_factory=Cosyvoice3Config)
 
 
 @dataclass
@@ -115,8 +141,8 @@ def validate_config(cfg: Config) -> None:
         raise ValueError(f"tts.ws_port must be 1..65535, got {cfg.tts.ws_port}")
     if not cfg.tts.ws_path.startswith("/"):
         raise ValueError("tts.ws_path must start with /")
-    if cfg.tts.backend not in {"sherpa_onnx_vits", "genshin_vits_onnx"}:
-        raise ValueError("tts.backend must be one of: sherpa_onnx_vits, genshin_vits_onnx")
+    if cfg.tts.backend not in {"sherpa_onnx_vits", "genshin_vits_onnx", "cosyvoice3"}:
+        raise ValueError("tts.backend must be one of: sherpa_onnx_vits, genshin_vits_onnx, cosyvoice3")
     _require_positive("tts.sample_rate", cfg.tts.sample_rate)
     if cfg.tts.speaker_id < 0:
         raise ValueError("tts.speaker_id must be >= 0")
@@ -128,6 +154,15 @@ def validate_config(cfg: Config) -> None:
     _require_positive("tts.stream_chunk_ms", cfg.tts.stream_chunk_ms)
     _require_positive("tts.max_concurrent_requests", cfg.tts.max_concurrent_requests)
     _require_non_negative("tts.queue_timeout_sec", cfg.tts.queue_timeout_sec)
+    c3 = cfg.tts.cosyvoice3
+    if not c3.url.startswith(("ws://", "wss://")):
+        raise ValueError("tts.cosyvoice3.url must start with ws:// or wss://")
+    _require_positive("tts.cosyvoice3.connect_timeout_sec", c3.connect_timeout_sec)
+    _require_positive("tts.cosyvoice3.autostart_wait_sec", c3.autostart_wait_sec)
+    _require_positive("tts.cosyvoice3.start_timeout_sec", c3.start_timeout_sec)
+    _require_positive("tts.cosyvoice3.chunk_timeout_sec", c3.chunk_timeout_sec)
+    if c3.speed is not None:
+        _require_positive("tts.cosyvoice3.speed", c3.speed)
 
 
 def load_config(path: str | Path | None = None) -> Config:

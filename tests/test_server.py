@@ -19,7 +19,7 @@ class FakeEngine:
     def load(self):
         return None
 
-    def stream_pcm(self, req):
+    def stream_pcm(self, req, cancel=None):
         assert req.text
         yield AudioChunk(b"\x01\x00\x02\x00", sample_rate=16000)
         yield AudioChunk(b"\x03\x00\x04\x00", sample_rate=16000)
@@ -88,11 +88,40 @@ def test_websocket_text_returns_pcm_chunks_and_end():
     asyncio.run(_test_websocket_text_returns_pcm_chunks_and_end())
 
 
+async def _test_websocket_client_close_after_flush_is_clean(caplog):
+    server, url = await run_ws_server(FakeEngine())
+    try:
+        with caplog.at_level(logging.ERROR):
+            async with websockets.connect(url) as ws:
+                await ws.send(json.dumps({"type": "text", "text": "\u4f60\u597d"}))
+                await ws.send(json.dumps({"type": "flush"}))
+                while True:
+                    msg = await ws.recv()
+                    if isinstance(msg, bytes):
+                        continue
+                    event = json.loads(msg)
+                    if event["type"] == "flushed":
+                        break
+            await asyncio.sleep(0.05)
+        failures = [
+            record for record in caplog.records
+            if record.name == "websockets.server" and "connection handler failed" in record.getMessage()
+        ]
+        assert not failures
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+def test_websocket_client_close_after_flush_is_clean(caplog):
+    asyncio.run(_test_websocket_client_close_after_flush_is_clean(caplog))
+
+
 async def _test_websocket_start_uses_actual_chunk_sample_rate():
     class ActualRateEngine(FakeEngine):
         sample_rate = 16000
 
-        def stream_pcm(self, req):
+        def stream_pcm(self, req, cancel=None):
             assert req.text
             yield AudioChunk(b"\x01\x00\x02\x00", sample_rate=8000)
 
@@ -117,7 +146,7 @@ async def _test_websocket_accepts_next_text_while_audio_is_blocked():
     release = threading.Event()
 
     class BlockingEngine(FakeEngine):
-        def stream_pcm(self, req):
+        def stream_pcm(self, req, cancel=None):
             yield AudioChunk(req.text.encode("utf-8"), sample_rate=16000)
             release.wait(timeout=2)
 
@@ -155,7 +184,7 @@ def test_websocket_accepts_next_text_while_audio_is_blocked():
 
 async def _test_websocket_synthesis_error_returns_json_error():
     class FailingEngine(FakeEngine):
-        def stream_pcm(self, req):
+        def stream_pcm(self, req, cancel=None):
             raise RuntimeError("boom")
 
     server, url = await run_ws_server(FailingEngine())
@@ -179,7 +208,7 @@ async def _test_websocket_concurrency_limit_returns_busy():
     release = threading.Event()
 
     class BlockingEngine(FakeEngine):
-        def stream_pcm(self, req):
+        def stream_pcm(self, req, cancel=None):
             started.set()
             release.wait(timeout=2)
             yield AudioChunk(b"done", sample_rate=16000)
@@ -218,7 +247,7 @@ async def _test_websocket_stream_resolves_speaker_profile(tmp_path):
     seen = {}
 
     class ProfileEngine(FakeEngine):
-        def stream_pcm(self, req):
+        def stream_pcm(self, req, cancel=None):
             seen["speaker_id"] = req.speaker_id
             seen["speed"] = req.speed
             yield AudioChunk(b"\x01\x00", sample_rate=16000)

@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import tarfile
+import threading
 import types
 import wave
 from pathlib import Path
@@ -90,12 +91,16 @@ class _BaseEngine:
     def synthesize_sentence(self, text: str, req: TtsRequest) -> AudioChunk:
         raise NotImplementedError
 
-    def stream_pcm(self, req: TtsRequest) -> Iterable[AudioChunk]:
+    def stream_pcm(self, req: TtsRequest, cancel: threading.Event | None = None) -> Iterable[AudioChunk]:
         for sentence in split_text(req.text):
+            if cancel is not None and cancel.is_set():
+                return
             audio = self.synthesize_sentence(sentence, req)
             chunk_samples = max(1, int(audio.sample_rate * self.cfg.tts.stream_chunk_ms / 1000))
             chunk_bytes = chunk_samples * audio.sample_width * audio.channels
             for offset in range(0, len(audio.pcm), chunk_bytes):
+                if cancel is not None and cancel.is_set():
+                    return
                 part = audio.pcm[offset:offset + chunk_bytes]
                 if part:
                     yield AudioChunk(part, sample_rate=audio.sample_rate)
@@ -259,8 +264,8 @@ class TtsEngine:
     def synthesize_sentence(self, text: str, *, speaker_id: int | None = None, speed: float | None = None) -> AudioChunk:
         return self._impl.synthesize_sentence(text, TtsRequest(text, speaker_id=speaker_id, speed=speed))
 
-    def stream_pcm(self, req: TtsRequest) -> Iterable[AudioChunk]:
-        return self._impl.stream_pcm(req)
+    def stream_pcm(self, req: TtsRequest, cancel: threading.Event | None = None) -> Iterable[AudioChunk]:
+        return self._impl.stream_pcm(req, cancel)
 
     def synthesize_wav(self, req: TtsRequest) -> bytes:
         return self._impl.synthesize_wav(req)
@@ -271,6 +276,10 @@ def _make_engine(cfg: Config) -> _BaseEngine:
         return SherpaOnnxVitsEngine(cfg)
     if cfg.tts.backend == "genshin_vits_onnx":
         return GenshinVitsOnnxEngine(cfg)
+    if cfg.tts.backend == "cosyvoice3":
+        from .cosyvoice3 import CosyVoice3Engine
+
+        return CosyVoice3Engine(cfg)
     raise ValueError(f"unsupported TTS backend: {cfg.tts.backend}")
 
 

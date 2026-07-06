@@ -1,0 +1,7 @@
+.venv/
+vendor/
+models/
+logs/
+__pycache__/
+*.egg-info/
+configs/config.yaml
