@@ -32,6 +32,6 @@ tts:
     model: "0.5b"
     # 参考音频（决定音色）；prompt_text 填参考音频逐字转写可提升相似度（zero_shot 模式），
     # 留空则用 cross_lingual 模式（无需转写）
-    prompt_wav: "C:/Users/Administrator/Downloads/zh_f.wav"
+    prompt_wav: "D:/Project/Python_Project/Chat/GVoice/sidecars/Reference Sound/zh_f.wav"
     # 语速，1.0 为原速；留空用 sidecar 默认
     speed:
