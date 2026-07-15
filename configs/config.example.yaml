@@ -28,6 +28,10 @@ tts:
   stream_chunk_ms: 120
   max_concurrent_requests: 1
   queue_timeout_sec: 5.0
+  max_pending_text_requests: 8
+  pcm_queue_chunks: 16
+  cancel_wait_sec: 3.0
+  max_text_chars: 2000
 
   # Set model_sha256 if you want strict verification for downloaded models.
   model_sha256:

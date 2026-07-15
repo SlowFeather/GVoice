@@ -12,6 +12,7 @@ build/
 artifacts/
 
 # Optional local-only config
+configs/config.yaml
 configs/config.local.yaml
 
 # Local editor/OS noise

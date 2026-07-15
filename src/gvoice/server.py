@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import queue as sync_queue
 import threading
 import time
 from typing import Any
@@ -47,6 +48,24 @@ class TtsWebSocketService:
         self.cfg = cfg
         self.engine = TtsEngine(cfg)
         self._request_slots = threading.BoundedSemaphore(int(cfg.tts.max_concurrent_requests))
+        self._jobs_lock = threading.Lock()
+        self._active_jobs = 0
+        self._model_loaded = False
+        self._last_error: str | None = None
+
+    def status(self) -> dict[str, Any]:
+        with self._jobs_lock:
+            active_jobs = self._active_jobs
+        return {
+            "type": "status",
+            "ready": self._model_loaded,
+            "state": "busy" if active_jobs else ("ready" if self._model_loaded else "starting"),
+            "model_loaded": self._model_loaded,
+            "audio_open": None,
+            "last_error": self._last_error,
+            "backend": self.cfg.tts.backend,
+            "active_jobs": active_jobs,
+        }
 
     async def handler(self, websocket) -> None:
         client = self._client_name(websocket)
@@ -57,11 +76,22 @@ class TtsWebSocketService:
             return
 
         logger.info("WebSocket connected client=%s path=%s", client, path)
-        queue: asyncio.Queue[TtsRequest | object] = asyncio.Queue()
+        queue: asyncio.Queue[TtsRequest | object] = asyncio.Queue(
+            maxsize=int(self.cfg.tts.max_pending_text_requests)
+        )
         producer = asyncio.create_task(self._receive_messages(websocket, queue))
         consumer = asyncio.create_task(self._send_audio(websocket, queue))
         try:
-            await consumer
+            done, _pending = await asyncio.wait({producer, consumer}, return_when=asyncio.FIRST_COMPLETED)
+            if producer in done and not consumer.done():
+                explicit_close = producer.result()
+                if explicit_close:
+                    await consumer
+                else:
+                    consumer.cancel()
+                    await asyncio.gather(consumer, return_exceptions=True)
+            elif consumer in done:
+                await consumer
         finally:
             if not producer.done():
                 producer.cancel()
@@ -78,7 +108,7 @@ class TtsWebSocketService:
         self,
         websocket,
         queue: asyncio.Queue[TtsRequest | object],
-    ) -> None:
+    ) -> bool:
         client = self._client_name(websocket)
         should_close = False
         try:
@@ -92,27 +122,41 @@ class TtsWebSocketService:
                         raise ValueError("message must be a JSON object")
                     msg_type = str(payload.get("type") or "text")
                     if msg_type == "ping":
-                        await self._send_json(websocket, {"type": "pong", "backend": self.cfg.tts.backend})
+                        status = self.status()
+                        status["type"] = "pong"
+                        await self._send_json(websocket, status)
+                    elif msg_type == "status":
+                        await self._send_json(websocket, self.status())
                     elif msg_type == "text":
                         req = _request_from_dict(payload)
-                        await queue.put(req)
+                        if len(req.text) > self.cfg.tts.max_text_chars:
+                            raise ValueError(f"text exceeds max_text_chars={self.cfg.tts.max_text_chars}")
+                        try:
+                            queue.put_nowait(req)
+                        except asyncio.QueueFull:
+                            await self._send_json(
+                                websocket,
+                                {"type": "error", "code": "QUEUE_FULL", "error": "text queue is full"},
+                            )
+                            continue
                         await self._send_json(websocket, {"type": "queued", "text_chars": len(req.text), "queue_size": queue.qsize()})
                     elif msg_type == "flush":
                         await queue.put(_FLUSH)
                     elif msg_type == "close":
                         await queue.put(_CLOSE)
                         should_close = True
-                        return
+                        return True
                     else:
                         raise ValueError(f"unsupported message type: {msg_type}")
                 except Exception as exc:
                     logger.warning("Invalid WebSocket message client=%s error=%s", client, exc)
                     await self._send_json(websocket, {"type": "error", "error": str(exc)})
         except ConnectionClosed:
-            return
+            return False
         finally:
             if not should_close:
                 await queue.put(_CLOSE)
+        return False
 
     async def _send_audio(
         self,
@@ -136,6 +180,12 @@ class TtsWebSocketService:
                 continue
             req = item
             assert isinstance(req, TtsRequest)
+            try:
+                req = self._resolve_speaker(req)
+            except Exception as exc:
+                logger.warning("invalid speaker profile client=%s error=%s", client, exc)
+                await self._send_json(websocket, {"type": "error", "code": "INVALID_SPEAKER", "error": str(exc)})
+                continue
             started = time.perf_counter()
             acquired = await asyncio.to_thread(self._request_slots.acquire, True, float(self.cfg.tts.queue_timeout_sec))
             if not acquired:
@@ -157,7 +207,6 @@ class TtsWebSocketService:
             chunks = 0
             total_bytes = 0
             try:
-                req = self._resolve_speaker(req)
                 started_audio = False
                 async for chunk in self._stream_request_audio(req):
                     if not started_audio:
@@ -197,8 +246,6 @@ class TtsWebSocketService:
             except Exception as exc:
                 logger.exception("WebSocket synthesis failed client=%s error=%s", client, exc)
                 await self._send_json(websocket, {"type": "error", "error": "synthesis failed"})
-            finally:
-                self._request_slots.release()
 
     async def serve_forever(self) -> None:
         logger.info(
@@ -207,7 +254,13 @@ class TtsWebSocketService:
             self.cfg.tts.sample_rate,
             self.cfg.tts.num_threads,
         )
-        self.engine.load()
+        try:
+            self.engine.load()
+        except Exception as exc:
+            self._last_error = str(exc)
+            raise
+        self._model_loaded = True
+        self._last_error = None
         logger.info("TTS engine loaded backend=%s sample_rate=%s", self.cfg.tts.backend, self.engine.sample_rate)
 
         host = self.cfg.tts.ws_host or self.cfg.tts.host
@@ -216,24 +269,49 @@ class TtsWebSocketService:
             await asyncio.Future()
 
     async def _stream_request_audio(self, req: TtsRequest):
-        loop = asyncio.get_running_loop()
-        audio_queue: asyncio.Queue[Any | Exception | None] = asyncio.Queue()
+        audio_queue: sync_queue.Queue[Any | Exception | None] = sync_queue.Queue(
+            maxsize=int(self.cfg.tts.pcm_queue_chunks)
+        )
         cancel = threading.Event()
+        done = threading.Event()
+
+        def put_output(item: Any | Exception | None) -> bool:
+            while not cancel.is_set():
+                try:
+                    audio_queue.put(item, timeout=0.1)
+                    return True
+                except sync_queue.Full:
+                    continue
+            return False
 
         def worker() -> None:
+            with self._jobs_lock:
+                self._active_jobs += 1
             try:
                 for chunk in self.engine.stream_pcm(req, cancel):
-                    loop.call_soon_threadsafe(audio_queue.put_nowait, chunk)
+                    if not put_output(chunk):
+                        break
             except Exception as exc:
-                loop.call_soon_threadsafe(audio_queue.put_nowait, exc)
+                put_output(exc)
             finally:
-                loop.call_soon_threadsafe(audio_queue.put_nowait, None)
+                try:
+                    audio_queue.put_nowait(None)
+                except sync_queue.Full:
+                    pass
+                done.set()
+                with self._jobs_lock:
+                    self._active_jobs -= 1
+                self._request_slots.release()
 
         thread = threading.Thread(target=worker, name="gvoice-ws-synth", daemon=True)
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            self._request_slots.release()
+            raise
         try:
             while True:
-                item = await audio_queue.get()
+                item = await asyncio.to_thread(audio_queue.get)
                 if item is None:
                     break
                 if isinstance(item, Exception):
@@ -243,6 +321,12 @@ class TtsWebSocketService:
             # 客户端断开/打断时（async generator 被关闭）通知合成线程尽快停止，
             # 避免被放弃的长合成占住并发槽位
             cancel.set()
+            finished = await asyncio.to_thread(done.wait, float(self.cfg.tts.cancel_wait_sec))
+            if not finished:
+                logger.warning(
+                    "synthesis worker still stopping after %.1fs; concurrency slot remains held",
+                    self.cfg.tts.cancel_wait_sec,
+                )
 
     def _resolve_speaker(self, req: TtsRequest) -> TtsRequest:
         if not req.speaker:

@@ -51,6 +51,7 @@ async def _test_websocket_ping_returns_pong():
             msg = json.loads(await ws.recv())
             assert msg["type"] == "pong"
             assert msg["backend"]
+            assert {"ready", "state", "model_loaded", "audio_open", "last_error"} <= msg.keys()
     finally:
         server.close()
         await server.wait_closed()
@@ -180,6 +181,46 @@ async def _test_websocket_accepts_next_text_while_audio_is_blocked():
 
 def test_websocket_accepts_next_text_while_audio_is_blocked():
     asyncio.run(_test_websocket_accepts_next_text_while_audio_is_blocked())
+
+
+async def _test_disconnect_cancels_worker_before_releasing_slot():
+    canceled = threading.Event()
+    finished = threading.Event()
+
+    class CancelAwareEngine(FakeEngine):
+        def stream_pcm(self, req, cancel=None):
+            yield AudioChunk(b"first", sample_rate=16000)
+            while cancel is not None and not cancel.is_set():
+                time.sleep(0.01)
+            canceled.set()
+            time.sleep(0.1)
+            finished.set()
+
+    cfg = load_config()
+    cfg.tts.max_concurrent_requests = 1
+    cfg.tts.cancel_wait_sec = 0.02
+    service = TtsWebSocketService(cfg)
+    service.engine = CancelAwareEngine()
+    server, url = await run_ws_service(service)
+    try:
+        ws = await websockets.connect(url)
+        await ws.send(json.dumps({"type": "text", "text": "cancel me"}))
+        assert json.loads(await ws.recv())["type"] == "queued"
+        assert json.loads(await ws.recv())["type"] == "start"
+        assert await ws.recv() == b"first"
+        await ws.close()
+        assert await asyncio.to_thread(canceled.wait, 1.0)
+        assert service._request_slots.acquire(blocking=False) is False
+        assert await asyncio.to_thread(finished.wait, 1.0)
+        assert service._request_slots.acquire(blocking=False) is True
+        service._request_slots.release()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+def test_disconnect_cancels_worker_before_releasing_slot():
+    asyncio.run(_test_disconnect_cancels_worker_before_releasing_slot())
 
 
 async def _test_websocket_synthesis_error_returns_json_error():

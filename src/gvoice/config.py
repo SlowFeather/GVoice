@@ -67,6 +67,10 @@ class TtsConfig:
     stream_chunk_ms: int = 120
     max_concurrent_requests: int = 1
     queue_timeout_sec: float = 5.0
+    max_pending_text_requests: int = 8
+    pcm_queue_chunks: int = 16
+    cancel_wait_sec: float = 3.0
+    max_text_chars: int = 2000
     model_url: str = TTS_MODEL_URL
     model_sha256: str | None = None
     genshin_model_path: str = "artifacts/models/vits-models-genshin-bh3/keqing/keqing_tunable.onnx"
@@ -154,6 +158,10 @@ def validate_config(cfg: Config) -> None:
     _require_positive("tts.stream_chunk_ms", cfg.tts.stream_chunk_ms)
     _require_positive("tts.max_concurrent_requests", cfg.tts.max_concurrent_requests)
     _require_non_negative("tts.queue_timeout_sec", cfg.tts.queue_timeout_sec)
+    _require_positive("tts.max_pending_text_requests", cfg.tts.max_pending_text_requests)
+    _require_positive("tts.pcm_queue_chunks", cfg.tts.pcm_queue_chunks)
+    _require_positive("tts.cancel_wait_sec", cfg.tts.cancel_wait_sec)
+    _require_positive("tts.max_text_chars", cfg.tts.max_text_chars)
     c3 = cfg.tts.cosyvoice3
     if not c3.url.startswith(("ws://", "wss://")):
         raise ValueError("tts.cosyvoice3.url must start with ws:// or wss://")

@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "websockets>=12"]
+dev = ["pytest", "websockets>=12", "ruff>=0.12", "mypy>=1.16", "pip-audit>=2.9"]
 export = ["librosa", "numba", "onnx", "onnxscript", "torch"]
 
 [project.scripts]
@@ -49,3 +49,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.mypy]
+files = ["src/gvoice/config.py", "src/gvoice/speakers.py", "src/gvoice/download.py"]
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+follow_imports = "skip"
