@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -49,7 +50,8 @@ class CosyVoice3Engine(_BaseEngine):
 
     def load(self) -> None:
         with self._lock:
-            self._ensure_ws()
+            ws = self._ensure_ws()
+            self._wait_ready(ws, self._c3.start_timeout_sec)
 
     def _ensure_ws(self):
         if self._ws is not None:
@@ -101,6 +103,18 @@ class CosyVoice3Engine(_BaseEngine):
             if data.get("type") == "pong":
                 return data
         raise RuntimeError("cosyvoice3 sidecar did not answer ping")
+
+    def _wait_ready(self, ws, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            pong = self._ping(ws)
+            self._sample_rate = int(pong.get("sample_rate") or self._sample_rate)
+            if pong.get("ready"):
+                return
+            if str(pong.get("state") or "").upper() == "FAILED":
+                raise RuntimeError(str(pong.get("last_error") or "cosyvoice3 model load failed"))
+            time.sleep(0.5)
+        raise RuntimeError(f"cosyvoice3 model warmup timed out after {timeout:.0f}s")
 
     def _check_model(self, ws):
         pong = self._ping(ws)
@@ -160,6 +174,8 @@ class CosyVoice3Engine(_BaseEngine):
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_file = log_path.open("ab")
         logger.info("Starting cosyvoice3 sidecar cmd=%s cwd=%s log=%s", " ".join(args), sidecar_dir, log_path)
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
         try:
             subprocess.Popen(
                 args,
@@ -167,6 +183,7 @@ class CosyVoice3Engine(_BaseEngine):
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
+                env=env,
             )
         finally:
             log_file.close()

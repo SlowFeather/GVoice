@@ -13,9 +13,35 @@ from gvoice.engine import TtsRequest, _make_engine
 PONG = {
     "type": "pong",
     "ready": True,
+    "state": "READY",
+    "model_loaded": True,
+    "last_error": None,
     "model": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
     "sample_rate": 24000,
 }
+
+
+def test_cosyvoice_cold_start_timeout_defaults_to_ten_minutes():
+    assert load_config().tts.cosyvoice3.start_timeout_sec == 600
+
+
+def test_sidecar_process_drops_inherited_virtual_env(tmp_path, monkeypatch):
+    sidecar_dir = tmp_path / "sidecar"
+    sidecar_dir.mkdir()
+    cfg = load_config()
+    cfg.tts.cosyvoice3.sidecar_dir = str(sidecar_dir)
+    cfg.tts.cosyvoice3.log_file = str(tmp_path / "sidecar.log")
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "other-project"))
+    captured = {}
+
+    def fake_popen(*_args, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("gvoice.cosyvoice3.subprocess.Popen", fake_popen)
+
+    CosyVoice3Engine(cfg)._spawn_sidecar()
+
+    assert "VIRTUAL_ENV" not in captured["env"]
 
 
 def make_engine(url):

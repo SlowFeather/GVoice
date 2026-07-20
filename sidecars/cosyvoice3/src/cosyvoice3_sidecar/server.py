@@ -16,7 +16,7 @@ from .engine import CosyVoice3Engine, EngineNotReady
 logger = logging.getLogger(__name__)
 
 # 模型未就绪时，synthesize 请求最多等待模型加载的秒数（含首次下载）
-MODEL_READY_TIMEOUT_SEC = 1800.0
+MODEL_READY_TIMEOUT_SEC = 600.0
 
 _CLOSE = object()
 
@@ -89,6 +89,9 @@ class CosyVoice3Service:
                             {
                                 "type": "pong",
                                 "ready": self.engine.ready,
+                                "state": self.engine.state,
+                                "model_loaded": self.engine.ready,
+                                "last_error": self.engine.last_error,
                                 "model": self.cfg.resolve_model_id(),
                                 "sample_rate": self.engine.sample_rate,
                             },

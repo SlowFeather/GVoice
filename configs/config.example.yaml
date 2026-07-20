@@ -47,6 +47,8 @@ tts:
     # 连不上时自动拉起 sidecar（uv run cosyvoice3-sidecar serve）
     autostart: true
     sidecar_dir: "sidecars/cosyvoice3"
+    # 模型下载、加载和 warmup 的冷启动上限（秒）
+    start_timeout_sec: 600
     # 0.5b（FunAudioLLM/Fun-CosyVoice3-0.5B-2512，默认）或 1.5b；也可填完整模型 id。
     # 修改后重启 GVoice，若 sidecar 正在跑别的模型会自动重启切换
     model: "0.5b"

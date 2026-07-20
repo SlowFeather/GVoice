@@ -34,6 +34,7 @@ async def run_ws_server(engine, cfg=None):
     cfg.tts.ws_port = 0
     service = TtsWebSocketService(cfg)
     service.engine = engine
+    service._model_loaded = True
     return await run_ws_service(service)
 
 
@@ -51,6 +52,7 @@ async def _test_websocket_ping_returns_pong():
             msg = json.loads(await ws.recv())
             assert msg["type"] == "pong"
             assert msg["backend"]
+            assert msg["state"] == "READY"
             assert {"ready", "state", "model_loaded", "audio_open", "last_error"} <= msg.keys()
     finally:
         server.close()
@@ -59,6 +61,11 @@ async def _test_websocket_ping_returns_pong():
 
 def test_websocket_ping_returns_pong():
     asyncio.run(_test_websocket_ping_returns_pong())
+
+
+def test_status_is_starting_before_model_load():
+    service = TtsWebSocketService(load_config())
+    assert service.status()["state"] == "STARTING"
 
 
 async def _test_websocket_text_returns_pcm_chunks_and_end():

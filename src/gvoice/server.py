@@ -59,7 +59,7 @@ class TtsWebSocketService:
         return {
             "type": "status",
             "ready": self._model_loaded,
-            "state": "busy" if active_jobs else ("ready" if self._model_loaded else "starting"),
+            "state": "READY" if self._model_loaded else ("FAILED" if self._last_error else "STARTING"),
             "model_loaded": self._model_loaded,
             "audio_open": None,
             "last_error": self._last_error,

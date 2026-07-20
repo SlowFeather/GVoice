@@ -44,7 +44,7 @@ class Cosyvoice3Config:
     connect_timeout_sec: float = 10.0
     autostart_wait_sec: float = 60.0
     # 等首个音频帧的超时；首次运行包含模型下载+加载，故很长
-    start_timeout_sec: float = 1800.0
+    start_timeout_sec: float = 600.0
     chunk_timeout_sec: float = 60.0
     restart_on_model_mismatch: bool = True
     log_file: str = "artifacts/logs/cosyvoice3.sidecar.log"

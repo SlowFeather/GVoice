@@ -57,6 +57,18 @@ class CosyVoice3Engine:
     def ready(self) -> bool:
         return self._ready.is_set()
 
+    @property
+    def state(self) -> str:
+        if self._ready.is_set():
+            return "READY"
+        if self._load_error is not None:
+            return "FAILED"
+        return "STARTING"
+
+    @property
+    def last_error(self) -> str | None:
+        return None if self._load_error is None else str(self._load_error)
+
     def start_loading(self) -> None:
         threading.Thread(target=self._load_in_background, name="cosyvoice3-load", daemon=True).start()
 
